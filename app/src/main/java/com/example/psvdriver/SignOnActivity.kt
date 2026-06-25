@@ -30,9 +30,6 @@ class SignOnActivity : AppCompatActivity() {
     private lateinit var routeSpinner: Spinner
     private lateinit var goInServiceButton: Button
     private lateinit var emptyText: TextView
-    private lateinit var inServiceGroup: View
-    private lateinit var inServiceText: TextView
-    private lateinit var shiftText: TextView
     private lateinit var retryButton: Button
     private lateinit var statusText: TextView
     private lateinit var logoutButton: Button
@@ -64,9 +61,6 @@ class SignOnActivity : AppCompatActivity() {
         routeSpinner = findViewById(R.id.routeSpinner)
         goInServiceButton = findViewById(R.id.goInServiceButton)
         emptyText = findViewById(R.id.emptyText)
-        inServiceGroup = findViewById(R.id.inServiceGroup)
-        inServiceText = findViewById(R.id.inServiceText)
-        shiftText = findViewById(R.id.shiftText)
         retryButton = findViewById(R.id.retryButton)
         statusText = findViewById(R.id.statusText)
         logoutButton = findViewById(R.id.logoutButton)
@@ -76,9 +70,9 @@ class SignOnActivity : AppCompatActivity() {
         retryButton.setOnClickListener { loadVehicles() }
         logoutButton.setOnClickListener { logout() }
 
-        // If a shift is already open, show the confirmed state instead of re-fetching.
+        // If a shift is already open, go straight to the in-service screen.
         if (tokens.shiftId != null) {
-            showInService(tokens.shiftId!!, tokens.shiftVehicle.orEmpty(), tokens.shiftRoute.orEmpty())
+            goToInService()
         } else {
             loadVehicles()
         }
@@ -147,8 +141,13 @@ class SignOnActivity : AppCompatActivity() {
             setBusy(false)
             when (result) {
                 is SignOnResult.Success -> {
-                    tokens.saveShift(result.shiftId, vehicle.toString(), route.toString())
-                    showInService(result.shiftId, vehicle.toString(), route.toString())
+                    tokens.saveShift(
+                        result.shiftId,
+                        vehicle.toString(),
+                        route.toString(),
+                        System.currentTimeMillis()
+                    )
+                    goToInService()
                 }
                 is SignOnResult.Unauthorized -> sessionExpired()
                 is SignOnResult.Rejected -> statusText.text = result.message
@@ -157,14 +156,12 @@ class SignOnActivity : AppCompatActivity() {
         }
     }
 
-    private fun showInService(shiftId: Int, vehicle: String, route: String) {
-        inServiceText.text = getString(R.string.in_service_on, vehicle, route)
-        shiftText.text = getString(R.string.shift_number, shiftId)
-        statusText.text = ""
-        showOnly(inServiceGroup)
-    }
-
     // ---- Navigation / state --------------------------------------------------
+
+    private fun goToInService() {
+        startActivity(Intent(this, InServiceActivity::class.java))
+        finish()
+    }
 
     private fun logout() {
         tokens.clear()
@@ -190,7 +187,6 @@ class SignOnActivity : AppCompatActivity() {
         progress.visibility = if (view === progress) View.VISIBLE else View.GONE
         formGroup.visibility = if (view === formGroup) View.VISIBLE else View.GONE
         emptyText.visibility = if (view === emptyText) View.VISIBLE else View.GONE
-        inServiceGroup.visibility = if (view === inServiceGroup) View.VISIBLE else View.GONE
         retryButton.visibility = if (view === retryButton) View.VISIBLE else View.GONE
     }
 
