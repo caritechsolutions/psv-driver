@@ -54,6 +54,19 @@ sealed class SignOnResult {
     data class NetworkError(val message: String) : SignOnResult()
 }
 
+/** Outcome of a single position ping. */
+sealed class PingResult {
+    data class Success(val positionId: Int) : PingResult()
+    /** 401 — token revoked/expired; caller should stop and send the user to login. */
+    object Unauthorized : PingResult()
+    /** 409 no_open_shift — the shift was closed server-side; stop tracking. */
+    object NoOpenShift : PingResult()
+    /** 422 — bad/missing fields; surfaced for logging, loop keeps going. */
+    data class Rejected(val message: String) : PingResult()
+    /** Transient: couldn't reach the server. Loop should show "reconnecting" and retry. */
+    data class NetworkError(val message: String) : PingResult()
+}
+
 /**
  * Thin OkHttp wrapper for the PSV API. Calls are BLOCKING — invoke them off the
  * main thread (Dispatchers.IO).
@@ -224,6 +237,67 @@ class ApiClient {
             }
         } catch (e: IOException) {
             SignOnResult.NetworkError(UNREACHABLE)
+        }
+    }
+
+    /**
+     * POST /api/ping.php (Bearer). Optional fields are sent only when provided.
+     * Returns 201 -> Success(position_id).
+     */
+    fun ping(
+        baseUrl: String,
+        token: String,
+        shiftId: Int,
+        lat: Double,
+        lng: Double,
+        speed: Float?,
+        heading: Int?,
+        seatStatus: String,
+        recordedAt: String,
+    ): PingResult {
+        val base = try {
+            normalizeBaseUrl(baseUrl)
+        } catch (e: UrlException) {
+            return PingResult.NetworkError(e.message!!)
+        }
+
+        val body = JSONObject()
+            .put("shift_id", shiftId)
+            .put("lat", lat)
+            .put("lng", lng)
+            .put("seat_status", seatStatus)
+            .put("recorded_at", recordedAt)
+        if (speed != null) body.put("speed", speed.toDouble())
+        if (heading != null) body.put("heading", heading)
+
+        val request = Request.Builder()
+            .url("$base/api/ping.php")
+            .post(body.toString().toRequestBody(JSON))
+            .addHeader("Authorization", "Bearer $token")
+            .build()
+
+        return try {
+            client.newCall(request).execute().use { response ->
+                val bodyText = response.body?.string().orEmpty()
+
+                when (response.code) {
+                    401 -> return PingResult.Unauthorized
+                    409 -> return PingResult.NoOpenShift
+                    422 -> return PingResult.Rejected(serverError(bodyText, "Ping rejected by server."))
+                }
+                if (!response.isSuccessful) {
+                    return PingResult.NetworkError("Server error (${response.code}).")
+                }
+
+                val json = parseJson(bodyText)
+                if (json != null && json.optBoolean("ok", false)) {
+                    PingResult.Success(json.optInt("position_id"))
+                } else {
+                    PingResult.NetworkError("Unexpected response from server.")
+                }
+            }
+        } catch (e: IOException) {
+            PingResult.NetworkError(UNREACHABLE)
         }
     }
 

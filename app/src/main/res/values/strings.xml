@@ -25,4 +25,25 @@
     <string name="error_session_expired">Session expired. Please log in again.</string>
     <string name="in_service_on">In service — %1$s on %2$s</string>
     <string name="shift_number">Shift #%1$d</string>
+
+    <!-- In-service screen -->
+    <string name="in_service_header">In service</string>
+    <string name="tracking_note">Tracking only while this screen is open.</string>
+    <string name="action_sign_off">Sign off</string>
+    <string name="seats_available">Seats: Available</string>
+    <string name="seats_full">Seats: Full</string>
+    <string name="stat_speed">Speed: %1$d km/h</string>
+    <string name="stat_on_shift">On shift: %1$s</string>
+    <string name="status_waiting_fix">Getting your location…</string>
+    <string name="status_updated_ago">Updated %1$ds ago</string>
+    <string name="status_updated_now">Updated just now</string>
+    <string name="status_reconnecting">Reconnecting…</string>
+    <string name="status_shift_closed">This shift was closed. Sign on again to continue.</string>
+
+    <!-- Location permission -->
+    <string name="perm_rationale">PSV Tracker needs your location to share this vehicle\'s position with riders while you\'re in service.</string>
+    <string name="perm_denied">Location permission is required to go in service. Grant it to start tracking.</string>
+    <string name="perm_denied_settings">Location is turned off for this app. Open Settings to allow it.</string>
+    <string name="action_grant_location">Grant location</string>
+    <string name="action_open_settings">Open settings</string>
 </resources>

@@ -80,30 +80,6 @@
             android:textSize="16sp"
             android:visibility="gone" />
 
-        <!-- ===== Confirmed in-service (placeholder; full screen + pinging next step) ===== -->
-        <LinearLayout
-            android:id="@+id/inServiceGroup"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:visibility="gone">
-
-            <TextView
-                android:id="@+id/inServiceText"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:textSize="18sp"
-                tools:text="In service — ZR-1234 — White ZR on 1A — Speightstown" />
-
-            <TextView
-                android:id="@+id/shiftText"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:textSize="16sp"
-                tools:text="Shift #42" />
-        </LinearLayout>
-
         <!-- Retry after a fetch network error -->
         <Button
             android:id="@+id/retryButton"
