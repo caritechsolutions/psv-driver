@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The real server is HTTPS (https://psv.caritech.net), so cleartext is DENIED by
+  default. The only exception below permits cleartext to a known private LAN IP so
+  a local test server can still be reached during development.
+
+  To test against a different local IP, add it as another <domain> here. Do NOT
+  re-enable broad cleartext — production traffic must stay on TLS.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+
+    <domain-config cleartextTrafficPermitted="true">
+        <!-- known local test server (LAN, plain HTTP) -->
+        <domain includeSubdomains="false">192.168.110.119</domain>
+    </domain-config>
+</network-security-config>

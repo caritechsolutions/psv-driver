@@ -1,3 +1,14 @@
 <resources>
     <string name="app_name">PSV Driver</string>
+
+    <string name="hint_server_url">Server URL</string>
+    <string name="hint_username">Username</string>
+    <string name="hint_password">Password</string>
+    <string name="action_login">Log in</string>
+    <string name="action_logout">Log out</string>
+
+    <string name="status_logging_in">Logging in…</string>
+    <string name="error_missing_fields">Enter username and password.</string>
+    <string name="error_invalid_credentials">Invalid username or password.</string>
+    <string name="logged_in_as">Logged in as %1$s</string>
 </resources>
