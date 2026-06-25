@@ -10,6 +10,23 @@ import java.net.MalformedURLException
 import java.net.URL
 import java.util.concurrent.TimeUnit
 
+// ---- Models ------------------------------------------------------------------
+
+/** A vehicle the driver is allowed to sign on to. */
+data class Vehicle(val id: Int, val registration: String, val label: String, val capacity: Int) {
+    // Shown directly in the Spinner via ArrayAdapter.
+    override fun toString(): String =
+        if (label.isBlank()) registration else "$registration — $label"
+}
+
+/** A route the driver may run. */
+data class Route(val id: Int, val routeNumber: String, val name: String) {
+    override fun toString(): String =
+        if (name.isBlank()) routeNumber else "$routeNumber — $name"
+}
+
+// ---- Result types ------------------------------------------------------------
+
 /** Outcome of a login attempt. */
 sealed class LoginResult {
     data class Success(val token: String, val driver: String) : LoginResult()
@@ -19,9 +36,27 @@ sealed class LoginResult {
     data class NetworkError(val message: String) : LoginResult()
 }
 
+/** Outcome of fetching the driver's allowed vehicles + routes. */
+sealed class VehiclesResult {
+    data class Success(val vehicles: List<Vehicle>, val routes: List<Route>) : VehiclesResult()
+    /** 401 — token missing/expired; caller should send the user back to login. */
+    object Unauthorized : VehiclesResult()
+    data class NetworkError(val message: String) : VehiclesResult()
+}
+
+/** Outcome of a sign-on attempt. */
+sealed class SignOnResult {
+    data class Success(val shiftId: Int, val driver: String) : SignOnResult()
+    /** 401 — token missing/expired; caller should send the user back to login. */
+    object Unauthorized : SignOnResult()
+    /** 422/409 — request understood but refused (unknown vehicle/route, etc.). */
+    data class Rejected(val message: String) : SignOnResult()
+    data class NetworkError(val message: String) : SignOnResult()
+}
+
 /**
- * Thin OkHttp wrapper for the PSV API. Only login is implemented in this step.
- * Calls are BLOCKING — invoke them off the main thread (Dispatchers.IO).
+ * Thin OkHttp wrapper for the PSV API. Calls are BLOCKING — invoke them off the
+ * main thread (Dispatchers.IO).
  */
 class ApiClient {
 
@@ -32,16 +67,10 @@ class ApiClient {
 
     /** POST /api/driver-login.php */
     fun login(baseUrl: String, username: String, password: String): LoginResult {
-        val trimmed = baseUrl.trim().trimEnd('/')
-
-        // Validate the URL up front so a typo gives a clear message instead of a crash.
-        try {
-            val parsed = URL(trimmed)
-            if (parsed.protocol != "http" && parsed.protocol != "https") {
-                return LoginResult.NetworkError("Server address must start with http:// or https://")
-            }
-        } catch (e: MalformedURLException) {
-            return LoginResult.NetworkError("Server address isn't a valid URL.")
+        val base = try {
+            normalizeBaseUrl(baseUrl)
+        } catch (e: UrlException) {
+            return LoginResult.NetworkError(e.message!!)
         }
 
         val payload = JSONObject()
@@ -50,7 +79,7 @@ class ApiClient {
             .toString()
 
         val request = Request.Builder()
-            .url("$trimmed/api/driver-login.php")
+            .url("$base/api/driver-login.php")
             .post(payload.toRequestBody(JSON))
             .build()
 
@@ -58,18 +87,13 @@ class ApiClient {
             client.newCall(request).execute().use { response ->
                 val bodyText = response.body?.string().orEmpty()
 
-                if (response.code == 401) {
-                    return LoginResult.InvalidCredentials
-                }
+                if (response.code == 401) return LoginResult.InvalidCredentials
                 if (!response.isSuccessful) {
                     return LoginResult.NetworkError("Server error (${response.code}). Try again.")
                 }
 
-                val json = try {
-                    JSONObject(bodyText)
-                } catch (e: Exception) {
-                    return LoginResult.NetworkError("Unexpected response from server.")
-                }
+                val json = parseJson(bodyText)
+                    ?: return LoginResult.NetworkError("Unexpected response from server.")
 
                 if (json.optBoolean("ok", false)) {
                     val token = json.optString("token", "")
@@ -85,11 +109,158 @@ class ApiClient {
                 }
             }
         } catch (e: IOException) {
-            LoginResult.NetworkError("Can't reach the server. Check the address and your network.")
+            LoginResult.NetworkError(UNREACHABLE)
         }
+    }
+
+    /** GET /api/driver-vehicles.php (Bearer) */
+    fun driverVehicles(baseUrl: String, token: String): VehiclesResult {
+        val base = try {
+            normalizeBaseUrl(baseUrl)
+        } catch (e: UrlException) {
+            return VehiclesResult.NetworkError(e.message!!)
+        }
+
+        val request = Request.Builder()
+            .url("$base/api/driver-vehicles.php")
+            .get()
+            .addHeader("Authorization", "Bearer $token")
+            .build()
+
+        return try {
+            client.newCall(request).execute().use { response ->
+                val bodyText = response.body?.string().orEmpty()
+
+                if (response.code == 401) return VehiclesResult.Unauthorized
+                if (!response.isSuccessful) {
+                    return VehiclesResult.NetworkError("Server error (${response.code}). Try again.")
+                }
+
+                val json = parseJson(bodyText)
+                    ?: return VehiclesResult.NetworkError("Unexpected response from server.")
+                if (!json.optBoolean("ok", false)) {
+                    return VehiclesResult.NetworkError("Unexpected response from server.")
+                }
+
+                val vehicles = mutableListOf<Vehicle>()
+                json.optJSONArray("vehicles")?.let { arr ->
+                    for (i in 0 until arr.length()) {
+                        val o = arr.optJSONObject(i) ?: continue
+                        vehicles.add(
+                            Vehicle(
+                                id = o.optInt("id"),
+                                registration = o.optString("registration"),
+                                label = o.optString("label"),
+                                capacity = o.optInt("capacity")
+                            )
+                        )
+                    }
+                }
+
+                val routes = mutableListOf<Route>()
+                json.optJSONArray("routes")?.let { arr ->
+                    for (i in 0 until arr.length()) {
+                        val o = arr.optJSONObject(i) ?: continue
+                        routes.add(
+                            Route(
+                                id = o.optInt("id"),
+                                routeNumber = o.optString("route_number"),
+                                name = o.optString("name")
+                            )
+                        )
+                    }
+                }
+
+                VehiclesResult.Success(vehicles, routes)
+            }
+        } catch (e: IOException) {
+            VehiclesResult.NetworkError(UNREACHABLE)
+        }
+    }
+
+    /** POST /api/signon.php (Bearer) */
+    fun signOn(baseUrl: String, token: String, vehicleId: Int, routeId: Int): SignOnResult {
+        val base = try {
+            normalizeBaseUrl(baseUrl)
+        } catch (e: UrlException) {
+            return SignOnResult.NetworkError(e.message!!)
+        }
+
+        val payload = JSONObject()
+            .put("vehicle_id", vehicleId)
+            .put("route_id", routeId)
+            .toString()
+
+        val request = Request.Builder()
+            .url("$base/api/signon.php")
+            .post(payload.toRequestBody(JSON))
+            .addHeader("Authorization", "Bearer $token")
+            .build()
+
+        return try {
+            client.newCall(request).execute().use { response ->
+                val bodyText = response.body?.string().orEmpty()
+
+                if (response.code == 401) return SignOnResult.Unauthorized
+                // 422 unknown/missing vehicle or route, 409 conflict — surface the
+                // server's own reason plainly.
+                if (response.code == 422 || response.code == 409) {
+                    return SignOnResult.Rejected(
+                        serverError(bodyText, "Sign-on was rejected by the server.")
+                    )
+                }
+                if (!response.isSuccessful) {
+                    return SignOnResult.NetworkError("Server error (${response.code}). Try again.")
+                }
+
+                val json = parseJson(bodyText)
+                    ?: return SignOnResult.NetworkError("Unexpected response from server.")
+
+                if (json.optBoolean("ok", false)) {
+                    SignOnResult.Success(json.optInt("shift_id"), json.optString("driver"))
+                } else {
+                    SignOnResult.Rejected(serverError(bodyText, "Sign-on was rejected by the server."))
+                }
+            }
+        } catch (e: IOException) {
+            SignOnResult.NetworkError(UNREACHABLE)
+        }
+    }
+
+    // ---- Shared helpers ------------------------------------------------------
+
+    private class UrlException(message: String) : Exception(message)
+
+    /** Trim trailing slashes and require a valid http/https URL, else [UrlException]. */
+    private fun normalizeBaseUrl(baseUrl: String): String {
+        val trimmed = baseUrl.trim().trimEnd('/')
+        val parsed = try {
+            URL(trimmed)
+        } catch (e: MalformedURLException) {
+            throw UrlException("Server address isn't a valid URL.")
+        }
+        if (parsed.protocol != "http" && parsed.protocol != "https") {
+            throw UrlException("Server address must start with http:// or https://")
+        }
+        return trimmed
+    }
+
+    private fun parseJson(body: String): JSONObject? =
+        try {
+            JSONObject(body)
+        } catch (e: Exception) {
+            null
+        }
+
+    /** Pull the server's `error` field (e.g. "unknown_vehicle") and make it readable. */
+    private fun serverError(body: String, fallback: String): String {
+        val raw = parseJson(body)?.optString("error", "").orEmpty()
+        if (raw.isBlank()) return fallback
+        return raw.replace('_', ' ').replaceFirstChar { it.uppercase() }
     }
 
     private companion object {
         val JSON = "application/json; charset=utf-8".toMediaType()
+        const val UNREACHABLE = "Can't reach the server. Check the address and your network."
     }
 }

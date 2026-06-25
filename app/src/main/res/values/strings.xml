@@ -11,4 +11,18 @@
     <string name="error_missing_fields">Enter username and password.</string>
     <string name="error_invalid_credentials">Invalid username or password.</string>
     <string name="logged_in_as">Logged in as %1$s</string>
+
+    <!-- Sign-on -->
+    <string name="title_sign_on">Sign on</string>
+    <string name="label_vehicle">Vehicle</string>
+    <string name="label_route">Route</string>
+    <string name="action_go_in_service">Go in service</string>
+    <string name="action_retry">Retry</string>
+    <string name="status_loading">Loading…</string>
+    <string name="status_signing_on">Signing on…</string>
+    <string name="empty_no_vehicles">No vehicles assigned — ask your operator to grant access.</string>
+    <string name="empty_no_routes">No routes available — ask your operator to set one up.</string>
+    <string name="error_session_expired">Session expired. Please log in again.</string>
+    <string name="in_service_on">In service — %1$s on %2$s</string>
+    <string name="shift_number">Shift #%1$d</string>
 </resources>

@@ -23,7 +23,6 @@
 
         <!-- ===== Login form ===== -->
         <LinearLayout
-            android:id="@+id/loginGroup"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical">
@@ -77,29 +76,6 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="16dp"
                 android:text="@string/action_login" />
-        </LinearLayout>
-
-        <!-- ===== Logged-in state ===== -->
-        <LinearLayout
-            android:id="@+id/loggedInGroup"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:visibility="gone">
-
-            <TextView
-                android:id="@+id/loggedInText"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:textSize="18sp"
-                tools:text="Logged in as Jane Driver" />
-
-            <Button
-                android:id="@+id/logoutButton"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
-                android:text="@string/action_logout" />
         </LinearLayout>
 
         <ProgressBar
