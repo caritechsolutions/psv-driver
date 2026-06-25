@@ -1,5 +1,6 @@
 package com.example.psvdriver
 
+import android.content.Intent
 import android.os.Bundle
 import android.view.View
 import android.widget.Button
@@ -21,19 +22,25 @@ class MainActivity : AppCompatActivity() {
     private lateinit var settings: SettingsStore
     private lateinit var tokens: TokenStore
 
-    private lateinit var loginGroup: View
-    private lateinit var loggedInGroup: View
     private lateinit var serverUrlInput: TextInputEditText
     private lateinit var usernameInput: TextInputEditText
     private lateinit var passwordInput: TextInputEditText
     private lateinit var loginButton: Button
-    private lateinit var logoutButton: Button
-    private lateinit var loggedInText: TextView
     private lateinit var statusText: TextView
     private lateinit var progress: ProgressBar
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        settings = SettingsStore(this)
+        tokens = TokenStore(this)
+
+        // Already logged in -> skip straight to sign-on.
+        if (tokens.isLoggedIn) {
+            goToSignOn()
+            return
+        }
+
         enableEdgeToEdge()
         setContentView(R.layout.activity_main)
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
@@ -42,37 +49,18 @@ class MainActivity : AppCompatActivity() {
             insets
         }
 
-        settings = SettingsStore(this)
-        tokens = TokenStore(this)
-
-        loginGroup = findViewById(R.id.loginGroup)
-        loggedInGroup = findViewById(R.id.loggedInGroup)
         serverUrlInput = findViewById(R.id.serverUrlInput)
         usernameInput = findViewById(R.id.usernameInput)
         passwordInput = findViewById(R.id.passwordInput)
         loginButton = findViewById(R.id.loginButton)
-        logoutButton = findViewById(R.id.logoutButton)
-        loggedInText = findViewById(R.id.loggedInText)
         statusText = findViewById(R.id.statusText)
         progress = findViewById(R.id.progress)
 
         serverUrlInput.setText(settings.baseUrl)
         loginButton.setOnClickListener { attemptLogin() }
-        logoutButton.setOnClickListener { logout() }
 
-        render()
-    }
-
-    /** Show either the login form or the logged-in state based on stored token. */
-    private fun render() {
-        if (tokens.isLoggedIn) {
-            loginGroup.visibility = View.GONE
-            loggedInGroup.visibility = View.VISIBLE
-            loggedInText.text = getString(R.string.logged_in_as, tokens.driver.orEmpty())
-        } else {
-            loginGroup.visibility = View.VISIBLE
-            loggedInGroup.visibility = View.GONE
-        }
+        // Shown when bounced here from sign-on (e.g. session expired).
+        intent.getStringExtra(EXTRA_MESSAGE)?.let { statusText.text = it }
     }
 
     private fun attemptLogin() {
@@ -101,7 +89,7 @@ class MainActivity : AppCompatActivity() {
                     tokens.save(result.token, result.driver)
                     passwordInput.text?.clear()
                     statusText.text = ""
-                    render()
+                    goToSignOn()
                 }
                 is LoginResult.InvalidCredentials -> {
                     statusText.text = getString(R.string.error_invalid_credentials)
@@ -113,16 +101,17 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun logout() {
-        tokens.clear()
-        statusText.text = ""
-        usernameInput.text?.clear()
-        passwordInput.text?.clear()
-        render()
+    private fun goToSignOn() {
+        startActivity(Intent(this, SignOnActivity::class.java))
+        finish()
     }
 
     private fun setBusy(busy: Boolean) {
         progress.visibility = if (busy) View.VISIBLE else View.GONE
         loginButton.isEnabled = !busy
+    }
+
+    companion object {
+        const val EXTRA_MESSAGE = "message"
     }
 }
