@@ -460,7 +460,9 @@ class InServiceActivity : AppCompatActivity() {
 
             val moving = isMoving(loc)
             val seat = if (seatSwitch.isChecked) "available" else "full"
-            val speed = if (loc.hasSpeed()) loc.speed else null
+            // Location.getSpeed() is m/s; send km/h to match what the screen shows
+            // and what the server/rider app expects.
+            val speed = if (loc.hasSpeed()) loc.speed * 3.6f else null
             val heading = if (loc.hasBearing()) loc.bearing.roundToInt().mod(360) else null
 
             val result = withContext(Dispatchers.IO) {
