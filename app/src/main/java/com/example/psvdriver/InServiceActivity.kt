@@ -23,7 +23,6 @@ import android.view.WindowManager
 import android.widget.Button
 import android.widget.TextView
 import android.widget.Toast
-import com.google.android.material.card.MaterialCardView
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
@@ -112,10 +111,7 @@ class InServiceActivity : AppCompatActivity() {
     private lateinit var permissionText: TextView
     private lateinit var permissionButton: Button
     private lateinit var trackingGroup: View
-    private lateinit var speedCard: MaterialCardView
-    private lateinit var speedLabel: TextView
-    private lateinit var speedValue: TextView
-    private lateinit var speedUnit: TextView
+    private lateinit var speedGauge: SpeedGaugeView
     private lateinit var onShiftValue: TextView
     private lateinit var updatedText: TextView
     private lateinit var seatSwitch: SwitchMaterial
@@ -198,10 +194,7 @@ class InServiceActivity : AppCompatActivity() {
         permissionText = findViewById(R.id.permissionText)
         permissionButton = findViewById(R.id.permissionButton)
         trackingGroup = findViewById(R.id.trackingGroup)
-        speedCard = findViewById(R.id.speedCard)
-        speedLabel = findViewById(R.id.speedLabel)
-        speedValue = findViewById(R.id.speedValue)
-        speedUnit = findViewById(R.id.speedUnit)
+        speedGauge = findViewById(R.id.speedGauge)
         onShiftValue = findViewById(R.id.onShiftValue)
         updatedText = findViewById(R.id.updatedText)
         seatSwitch = findViewById(R.id.seatSwitch)
@@ -225,6 +218,7 @@ class InServiceActivity : AppCompatActivity() {
             R.string.route_vehicle_line, tokens.shiftRoute.orEmpty(), tokens.shiftVehicle.orEmpty()
         )
         shiftText.text = getString(R.string.shift_number, tokens.shiftId ?: 0)
+        speedGauge.setLimit(speedLimitKmh)
 
         seatSwitch.setOnCheckedChangeListener { _, checked ->
             seatSwitch.setText(if (checked) R.string.seats_available else R.string.seats_full)
@@ -329,7 +323,7 @@ class InServiceActivity : AppCompatActivity() {
         lastLocation = location
         val hasSpeed = location.hasSpeed()
         val kmh = if (hasSpeed) (location.speed * 3.6f).roundToInt() else 0
-        speedValue.text = kmh.toString()
+        speedGauge.setSpeed(kmh)
         evaluateSpeedAlarm(kmh, hasSpeed)
 
         val point = GeoPoint(location.latitude, location.longitude)
@@ -367,7 +361,8 @@ class InServiceActivity : AppCompatActivity() {
     private fun enterAlarm() {
         if (alarmActive) return
         alarmActive = true
-        setSpeedCardAlarm(true)
+        // The gauge already shows red the instant speed crosses the limit; the
+        // sustained alarm only adds the beep + vibration.
         startBeep()
         startVibration()
     }
@@ -376,23 +371,8 @@ class InServiceActivity : AppCompatActivity() {
         overSinceElapsed = 0L
         if (!alarmActive) return
         alarmActive = false
-        setSpeedCardAlarm(false)
         stopBeep()
         stopVibration()
-    }
-
-    private fun setSpeedCardAlarm(on: Boolean) {
-        if (on) {
-            speedCard.setCardBackgroundColor(ContextCompat.getColor(this, R.color.ps_red))
-            speedLabel.setTextColor(ContextCompat.getColor(this, R.color.white))
-            speedValue.setTextColor(ContextCompat.getColor(this, R.color.white))
-            speedUnit.setTextColor(ContextCompat.getColor(this, R.color.white))
-        } else {
-            speedCard.setCardBackgroundColor(ContextCompat.getColor(this, R.color.ps_surface))
-            speedLabel.setTextColor(ContextCompat.getColor(this, R.color.ps_on_dark_muted))
-            speedValue.setTextColor(ContextCompat.getColor(this, R.color.ps_on_dark))
-            speedUnit.setTextColor(ContextCompat.getColor(this, R.color.ps_on_dark_muted))
-        }
     }
 
     private fun startBeep() {
