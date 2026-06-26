@@ -151,6 +151,7 @@
                     android:orientation="horizontal">
 
                     <com.google.android.material.card.MaterialCardView
+                        android:id="@+id/speedCard"
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
@@ -167,6 +168,7 @@
                             android:padding="16dp">
 
                             <TextView
+                                android:id="@+id/speedLabel"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="@string/label_speed"
@@ -184,6 +186,7 @@
                                 tools:text="32" />
 
                             <TextView
+                                android:id="@+id/speedUnit"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="@string/label_speed_unit"

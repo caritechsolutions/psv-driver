@@ -23,6 +23,9 @@ class SignOnActivity : AppCompatActivity() {
     private lateinit var settings: SettingsStore
     private lateinit var tokens: TokenStore
 
+    /** Global speed limit from the driver-vehicles fetch; stored with the shift on sign-on. */
+    private var speedLimitKmh = 0
+
     private lateinit var headerText: TextView
     private lateinit var progress: ProgressBar
     private lateinit var formGroup: View
@@ -91,7 +94,10 @@ class SignOnActivity : AppCompatActivity() {
             }
             progress.visibility = View.GONE
             when (result) {
-                is VehiclesResult.Success -> populate(result.vehicles, result.routes)
+                is VehiclesResult.Success -> {
+                    speedLimitKmh = result.speedLimitKmh
+                    populate(result.vehicles, result.routes)
+                }
                 is VehiclesResult.Unauthorized -> sessionExpired()
                 is VehiclesResult.NetworkError -> {
                     showOnly(retryButton)
@@ -145,7 +151,8 @@ class SignOnActivity : AppCompatActivity() {
                         result.shiftId,
                         vehicle.toString(),
                         route.toString(),
-                        System.currentTimeMillis()
+                        System.currentTimeMillis(),
+                        speedLimitKmh
                     )
                     goToInService()
                 }

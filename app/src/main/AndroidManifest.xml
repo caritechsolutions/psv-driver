@@ -7,6 +7,8 @@
     <!-- Foreground-only "while using the app" location; NO background permission yet. -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- Speeding alarm: buzz alongside the beep. -->
+    <uses-permission android:name="android.permission.VIBRATE" />
 
     <application
         android:allowBackup="true"

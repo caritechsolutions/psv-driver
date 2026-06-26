@@ -2,19 +2,28 @@ package com.example.psvdriver
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.location.Location
+import android.media.AudioManager
+import android.media.ToneGenerator
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.Looper
 import android.os.SystemClock
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
 import android.provider.Settings
 import android.view.MotionEvent
 import android.view.View
+import android.view.WindowManager
 import android.widget.Button
 import android.widget.TextView
 import android.widget.Toast
+import com.google.android.material.card.MaterialCardView
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
@@ -64,6 +73,20 @@ private const val LOCATION_MIN_UPDATE_MS = 2_000L
 private const val STALE_FIX_MS = 60_000L
 /** How often the on-screen stats (timer, "updated Ns ago") refresh. */
 private const val UI_TICK_MS = 1_000L
+
+// --- Speeding alarm tunables ---
+/** Speed must stay at/over the limit this long before the alarm triggers (anti-spike). */
+private const val SPEED_ALARM_SUSTAIN_MS = 4_000L
+/** Hysteresis: only clear once speed drops this many km/h BELOW the limit. */
+private const val SPEED_ALARM_CLEAR_MARGIN_KMH = 2
+/** Gap between beeps while alarming (repeating, not a constant blare). */
+private const val BEEP_REPEAT_INTERVAL_MS = 1_500L
+/** Length of each beep. */
+private const val BEEP_TONE_MS = 350
+/** ToneGenerator volume (0-100). */
+private const val ALARM_TONE_VOLUME = 100
+/** Repeating vibration pattern while alarming: wait, buzz, gap (ms), looped. */
+private val ALARM_VIBE_PATTERN = longArrayOf(0L, 500L, 1_000L)
 // =============================================================================
 
 class InServiceActivity : AppCompatActivity() {
@@ -88,12 +111,23 @@ class InServiceActivity : AppCompatActivity() {
     private lateinit var permissionText: TextView
     private lateinit var permissionButton: Button
     private lateinit var trackingGroup: View
+    private lateinit var speedCard: MaterialCardView
+    private lateinit var speedLabel: TextView
     private lateinit var speedValue: TextView
+    private lateinit var speedUnit: TextView
     private lateinit var onShiftValue: TextView
     private lateinit var updatedText: TextView
     private lateinit var seatSwitch: SwitchMaterial
     private lateinit var signOffButton: Button
     private var liveAnim: android.animation.ObjectAnimator? = null
+
+    // Speeding alarm state (main thread).
+    private var speedLimitKmh = 0          // 0 => alarm disabled
+    private var alarmActive = false
+    private var overSinceElapsed = 0L      // elapsedRealtime when speed first reached the limit; 0 = not over
+    private var beepJob: Job? = null
+    private var toneGenerator: ToneGenerator? = null
+    private lateinit var vibrator: Vibrator
 
     // Live tracking state (read/written on the main thread).
     private var lastLocation: Location? = null
@@ -144,6 +178,13 @@ class InServiceActivity : AppCompatActivity() {
             osmdroidTileCache = File(osmdroidBasePath, "tiles")
         }
 
+        // Foreground-only tracking pauses when the screen sleeps, so keep it on
+        // while this screen is showing. Cleared in onDestroy.
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+
+        speedLimitKmh = tokens.shiftSpeedLimitKmh
+        vibrator = obtainVibrator()
+
         enableEdgeToEdge()
         setContentView(R.layout.activity_in_service)
 
@@ -156,7 +197,10 @@ class InServiceActivity : AppCompatActivity() {
         permissionText = findViewById(R.id.permissionText)
         permissionButton = findViewById(R.id.permissionButton)
         trackingGroup = findViewById(R.id.trackingGroup)
+        speedCard = findViewById(R.id.speedCard)
+        speedLabel = findViewById(R.id.speedLabel)
         speedValue = findViewById(R.id.speedValue)
+        speedUnit = findViewById(R.id.speedUnit)
         onShiftValue = findViewById(R.id.onShiftValue)
         updatedText = findViewById(R.id.updatedText)
         seatSwitch = findViewById(R.id.seatSwitch)
@@ -234,6 +278,16 @@ class InServiceActivity : AppCompatActivity() {
         super.onStop()
     }
 
+    override fun onDestroy() {
+        // Final safety net: no zombie tone/vibration, release resources, drop the flag.
+        stopBeep()
+        stopVibration()
+        toneGenerator?.release()
+        toneGenerator = null
+        window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        super.onDestroy()
+    }
+
     private fun hasLocationPermission(): Boolean =
         ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) ==
             PackageManager.PERMISSION_GRANTED
@@ -266,12 +320,16 @@ class InServiceActivity : AppCompatActivity() {
         pingJob = null
         tickerJob = null
         if (::liveDot.isInitialized) stopLiveAnim()
+        // Leaving/backgrounding the screen: drop any active alarm cleanly.
+        if (::vibrator.isInitialized) clearAlarm()
     }
 
     private fun onNewLocation(location: Location) {
         lastLocation = location
-        val kmh = if (location.hasSpeed()) (location.speed * 3.6f).roundToInt() else 0
+        val hasSpeed = location.hasSpeed()
+        val kmh = if (hasSpeed) (location.speed * 3.6f).roundToInt() else 0
         speedValue.text = kmh.toString()
+        evaluateSpeedAlarm(kmh, hasSpeed)
 
         val point = GeoPoint(location.latitude, location.longitude)
         marker.position = point
@@ -283,6 +341,102 @@ class InServiceActivity : AppCompatActivity() {
         }
         map.invalidate()
     }
+
+    // ---- Speeding alarm ------------------------------------------------------
+
+    /** Sustained-over-limit entry with hysteresis on exit. Compares integer km/h. */
+    private fun evaluateSpeedAlarm(kmh: Int, hasSpeed: Boolean) {
+        if (speedLimitKmh <= 0 || !hasSpeed) return // disabled, or can't judge this fix
+        val now = SystemClock.elapsedRealtime()
+        if (!alarmActive) {
+            if (kmh >= speedLimitKmh) {
+                if (overSinceElapsed == 0L) {
+                    overSinceElapsed = now
+                } else if (now - overSinceElapsed >= SPEED_ALARM_SUSTAIN_MS) {
+                    enterAlarm()
+                }
+            } else {
+                overSinceElapsed = 0L
+            }
+        } else {
+            if (kmh <= speedLimitKmh - SPEED_ALARM_CLEAR_MARGIN_KMH) clearAlarm()
+        }
+    }
+
+    private fun enterAlarm() {
+        if (alarmActive) return
+        alarmActive = true
+        setSpeedCardAlarm(true)
+        startBeep()
+        startVibration()
+    }
+
+    private fun clearAlarm() {
+        overSinceElapsed = 0L
+        if (!alarmActive) return
+        alarmActive = false
+        setSpeedCardAlarm(false)
+        stopBeep()
+        stopVibration()
+    }
+
+    private fun setSpeedCardAlarm(on: Boolean) {
+        if (on) {
+            speedCard.setCardBackgroundColor(ContextCompat.getColor(this, R.color.ps_red))
+            speedLabel.setTextColor(ContextCompat.getColor(this, R.color.white))
+            speedValue.setTextColor(ContextCompat.getColor(this, R.color.white))
+            speedUnit.setTextColor(ContextCompat.getColor(this, R.color.white))
+        } else {
+            speedCard.setCardBackgroundColor(ContextCompat.getColor(this, R.color.ps_surface))
+            speedLabel.setTextColor(ContextCompat.getColor(this, R.color.ps_on_dark_muted))
+            speedValue.setTextColor(ContextCompat.getColor(this, R.color.ps_on_dark))
+            speedUnit.setTextColor(ContextCompat.getColor(this, R.color.ps_on_dark_muted))
+        }
+    }
+
+    private fun startBeep() {
+        if (beepJob != null) return
+        beepJob = lifecycleScope.launch {
+            // STREAM_ALARM so a safety beep sounds even on silent/vibrate.
+            val tg = toneGenerator ?: try {
+                ToneGenerator(AudioManager.STREAM_ALARM, ALARM_TONE_VOLUME).also { toneGenerator = it }
+            } catch (e: RuntimeException) {
+                null
+            }
+            while (isActive) {
+                tg?.startTone(ToneGenerator.TONE_CDMA_HIGH_L, BEEP_TONE_MS)
+                delay(BEEP_REPEAT_INTERVAL_MS)
+            }
+        }
+    }
+
+    private fun stopBeep() {
+        beepJob?.cancel()
+        beepJob = null
+        toneGenerator?.stopTone()
+    }
+
+    @Suppress("DEPRECATION")
+    private fun startVibration() {
+        if (!vibrator.hasVibrator()) return
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            vibrator.vibrate(VibrationEffect.createWaveform(ALARM_VIBE_PATTERN, 0)) // repeat from index 0
+        } else {
+            vibrator.vibrate(ALARM_VIBE_PATTERN, 0)
+        }
+    }
+
+    private fun stopVibration() {
+        if (::vibrator.isInitialized) vibrator.cancel()
+    }
+
+    private fun obtainVibrator(): Vibrator =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            (getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager).defaultVibrator
+        } else {
+            @Suppress("DEPRECATION")
+            getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+        }
 
     // ---- Ping loop (adaptive cadence) ----------------------------------------
 
