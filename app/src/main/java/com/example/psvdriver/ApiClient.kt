@@ -59,6 +59,14 @@ sealed class SignOnResult {
     data class NetworkError(val message: String) : SignOnResult()
 }
 
+/** Outcome of a sign-off attempt. */
+sealed class SignOffResult {
+    /** Shift closed; [closed] is how many were closed (0 = nothing was open, still fine). */
+    data class Success(val closed: Int) : SignOffResult()
+    object Unauthorized : SignOffResult()
+    data class NetworkError(val message: String) : SignOffResult()
+}
+
 /** Outcome of a single position ping. */
 sealed class PingResult {
     data class Success(val positionId: Int) : PingResult()
@@ -242,6 +250,43 @@ class ApiClient {
             }
         } catch (e: IOException) {
             SignOnResult.NetworkError(UNREACHABLE)
+        }
+    }
+
+    /** POST /api/signoff.php (Bearer). Any ok:true is success (closed:0 is fine). */
+    fun signOff(baseUrl: String, token: String, shiftId: Int): SignOffResult {
+        val base = try {
+            normalizeBaseUrl(baseUrl)
+        } catch (e: UrlException) {
+            return SignOffResult.NetworkError(e.message!!)
+        }
+
+        val payload = JSONObject().put("shift_id", shiftId).toString()
+
+        val request = Request.Builder()
+            .url("$base/api/signoff.php")
+            .post(payload.toRequestBody(JSON))
+            .addHeader("Authorization", "Bearer $token")
+            .build()
+
+        return try {
+            client.newCall(request).execute().use { response ->
+                val bodyText = response.body?.string().orEmpty()
+
+                if (response.code == 401) return SignOffResult.Unauthorized
+                if (!response.isSuccessful) {
+                    return SignOffResult.NetworkError("Server error (${response.code}).")
+                }
+
+                val json = parseJson(bodyText)
+                if (json != null && json.optBoolean("ok", false)) {
+                    SignOffResult.Success(json.optInt("closed", 0))
+                } else {
+                    SignOffResult.NetworkError("Unexpected response from server.")
+                }
+            }
+        } catch (e: IOException) {
+            SignOffResult.NetworkError(UNREACHABLE)
         }
     }
 
