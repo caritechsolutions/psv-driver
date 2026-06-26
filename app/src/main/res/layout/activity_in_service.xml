@@ -157,7 +157,7 @@
                     <com.example.psvdriver.SpeedGaugeView
                         android:id="@+id/speedGauge"
                         android:layout_width="match_parent"
-                        android:layout_height="240dp"
+                        android:layout_height="160dp"
                         android:layout_margin="12dp" />
                 </com.google.android.material.card.MaterialCardView>
 

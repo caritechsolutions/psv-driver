@@ -27,7 +27,6 @@ class SpeedGaugeView @JvmOverloads constructor(
     private var limit = 0
 
     private val density = resources.displayMetrics.density
-    private val arcStroke = 24f * density
 
     private val trackPaint = arcPaint(R.color.ps_stroke)
     private val redZonePaint = arcPaint(R.color.ps_red)
@@ -50,7 +49,6 @@ class SpeedGaugeView @JvmOverloads constructor(
 
     private fun arcPaint(colorRes: Int) = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
-        strokeWidth = arcStroke
         strokeCap = Paint.Cap.ROUND
         color = ContextCompat.getColor(context, colorRes)
     }
@@ -92,9 +90,15 @@ class SpeedGaugeView @JvmOverloads constructor(
 
         val w = width.toFloat()
         val h = height.toFloat()
+        // Arc thickness scales with the gauge so it looks right at any size.
+        val arcStroke = min(w, h) * 0.09f
+        trackPaint.strokeWidth = arcStroke
+        redZonePaint.strokeWidth = arcStroke
+        progressPaint.strokeWidth = arcStroke
+
         val pad = arcStroke / 2f + 2f * density
         // 270° sweep with the gap at the bottom; arc spans ~1.707r vertically, 2r wide.
-        // Reserve arcStroke at top+bottom so the rounded caps never clip.
+        // Reserve the stroke at top+bottom so the rounded caps never clip.
         val r = min((w - arcStroke) / 2f, (h - 2f * pad) / 1.707f)
         val cx = w / 2f
         val cy = pad + r
