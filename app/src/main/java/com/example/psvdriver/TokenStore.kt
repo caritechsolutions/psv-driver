@@ -46,12 +46,13 @@ class TokenStore(context: Context) {
     // ---- Open shift (set on sign-on; needed for pinging in the next step) ----
 
     /** Records the open shift plus a human-readable description and start time. */
-    fun saveShift(shiftId: Int, vehicle: String, route: String, startedAt: Long) {
+    fun saveShift(shiftId: Int, vehicle: String, route: String, startedAt: Long, speedLimitKmh: Int) {
         prefs.edit()
             .putInt(KEY_SHIFT_ID, shiftId)
             .putString(KEY_SHIFT_VEHICLE, vehicle)
             .putString(KEY_SHIFT_ROUTE, route)
             .putLong(KEY_SHIFT_STARTED_AT, startedAt)
+            .putInt(KEY_SHIFT_SPEED_LIMIT, speedLimitKmh)
             .apply()
     }
 
@@ -61,6 +62,7 @@ class TokenStore(context: Context) {
             .remove(KEY_SHIFT_VEHICLE)
             .remove(KEY_SHIFT_ROUTE)
             .remove(KEY_SHIFT_STARTED_AT)
+            .remove(KEY_SHIFT_SPEED_LIMIT)
             .apply()
     }
 
@@ -70,6 +72,8 @@ class TokenStore(context: Context) {
     val shiftRoute: String? get() = prefs.getString(KEY_SHIFT_ROUTE, null)
     /** Epoch millis when the shift started (for the running on-shift timer); 0 if unknown. */
     val shiftStartedAt: Long get() = prefs.getLong(KEY_SHIFT_STARTED_AT, 0L)
+    /** Global speed limit (km/h) for this shift; 0 means no limit / alarm disabled. */
+    val shiftSpeedLimitKmh: Int get() = prefs.getInt(KEY_SHIFT_SPEED_LIMIT, 0)
 
     private companion object {
         const val KEY_TOKEN = "token"
@@ -78,5 +82,6 @@ class TokenStore(context: Context) {
         const val KEY_SHIFT_VEHICLE = "shift_vehicle"
         const val KEY_SHIFT_ROUTE = "shift_route"
         const val KEY_SHIFT_STARTED_AT = "shift_started_at"
+        const val KEY_SHIFT_SPEED_LIMIT = "shift_speed_limit"
     }
 }

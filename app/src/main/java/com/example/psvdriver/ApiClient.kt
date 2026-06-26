@@ -38,7 +38,12 @@ sealed class LoginResult {
 
 /** Outcome of fetching the driver's allowed vehicles + routes. */
 sealed class VehiclesResult {
-    data class Success(val vehicles: List<Vehicle>, val routes: List<Route>) : VehiclesResult()
+    data class Success(
+        val vehicles: List<Vehicle>,
+        val routes: List<Route>,
+        /** Global speed limit in km/h; 0 (or missing) means no limit / alarm disabled. */
+        val speedLimitKmh: Int,
+    ) : VehiclesResult()
     /** 401 — token missing/expired; caller should send the user back to login. */
     object Unauthorized : VehiclesResult()
     data class NetworkError(val message: String) : VehiclesResult()
@@ -184,7 +189,7 @@ class ApiClient {
                     }
                 }
 
-                VehiclesResult.Success(vehicles, routes)
+                VehiclesResult.Success(vehicles, routes, json.optInt("speed_limit_kmh", 0))
             }
         } catch (e: IOException) {
             VehiclesResult.NetworkError(UNREACHABLE)
