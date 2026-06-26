@@ -10,6 +10,7 @@ import android.os.Bundle
 import android.os.Looper
 import android.os.SystemClock
 import android.provider.Settings
+import android.view.MotionEvent
 import android.view.View
 import android.widget.Button
 import android.widget.TextView
@@ -78,17 +79,21 @@ class InServiceActivity : AppCompatActivity() {
     private lateinit var marker: Marker
     private var centeredOnce = false
 
+    private lateinit var header: View
     private lateinit var routeVehicleText: TextView
     private lateinit var shiftText: TextView
+    private lateinit var liveDot: View
+    private lateinit var liveLabel: TextView
     private lateinit var permissionGroup: View
     private lateinit var permissionText: TextView
     private lateinit var permissionButton: Button
     private lateinit var trackingGroup: View
-    private lateinit var speedText: TextView
-    private lateinit var onShiftText: TextView
+    private lateinit var speedValue: TextView
+    private lateinit var onShiftValue: TextView
     private lateinit var updatedText: TextView
     private lateinit var seatSwitch: SwitchMaterial
     private lateinit var signOffButton: Button
+    private var liveAnim: android.animation.ObjectAnimator? = null
 
     // Live tracking state (read/written on the main thread).
     private var lastLocation: Location? = null
@@ -141,26 +146,38 @@ class InServiceActivity : AppCompatActivity() {
 
         enableEdgeToEdge()
         setContentView(R.layout.activity_in_service)
-        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
-            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
-            insets
-        }
 
+        header = findViewById(R.id.header)
         routeVehicleText = findViewById(R.id.routeVehicleText)
         shiftText = findViewById(R.id.shiftText)
+        liveDot = findViewById(R.id.liveDot)
+        liveLabel = findViewById(R.id.liveLabel)
         permissionGroup = findViewById(R.id.permissionGroup)
         permissionText = findViewById(R.id.permissionText)
         permissionButton = findViewById(R.id.permissionButton)
         trackingGroup = findViewById(R.id.trackingGroup)
-        speedText = findViewById(R.id.speedText)
-        onShiftText = findViewById(R.id.onShiftText)
+        speedValue = findViewById(R.id.speedValue)
+        onShiftValue = findViewById(R.id.onShiftValue)
         updatedText = findViewById(R.id.updatedText)
         seatSwitch = findViewById(R.id.seatSwitch)
         signOffButton = findViewById(R.id.signOffButton)
 
+        // The green header draws behind the status bar: top inset pads the header,
+        // the remaining insets pad the scroll content.
+        val headerPad = header.paddingTop
+        val root = findViewById<View>(R.id.main)
+        val rootPad = root.paddingBottom
+        ViewCompat.setOnApplyWindowInsetsListener(root) { v, insets ->
+            val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            v.setPadding(bars.left, 0, bars.right, rootPad + bars.bottom)
+            header.setPadding(
+                header.paddingLeft, headerPad + bars.top, header.paddingRight, header.paddingBottom
+            )
+            insets
+        }
+
         routeVehicleText.text = getString(
-            R.string.in_service_on, tokens.shiftVehicle.orEmpty(), tokens.shiftRoute.orEmpty()
+            R.string.route_vehicle_line, tokens.shiftRoute.orEmpty(), tokens.shiftVehicle.orEmpty()
         )
         shiftText.text = getString(R.string.shift_number, tokens.shiftId ?: 0)
 
@@ -179,6 +196,7 @@ class InServiceActivity : AppCompatActivity() {
 
     // ---- Map -----------------------------------------------------------------
 
+    @SuppressLint("ClickableViewAccessibility")
     private fun setupMap() {
         map = findViewById(R.id.map)
         map.setTileSource(TileSourceFactory.MAPNIK)
@@ -189,6 +207,17 @@ class InServiceActivity : AppCompatActivity() {
             title = getString(R.string.in_service_header)
         }
         map.overlays.add(marker)
+
+        // Let the map pan/zoom without the surrounding ScrollView stealing the gesture.
+        map.setOnTouchListener { v, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE ->
+                    v.parent?.requestDisallowInterceptTouchEvent(true)
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL ->
+                    v.parent?.requestDisallowInterceptTouchEvent(false)
+            }
+            false // don't consume — let the map handle the touch
+        }
     }
 
     // ---- Lifecycle: tracking runs only while this screen is in the foreground --
@@ -236,12 +265,13 @@ class InServiceActivity : AppCompatActivity() {
         tickerJob?.cancel()
         pingJob = null
         tickerJob = null
+        if (::liveDot.isInitialized) stopLiveAnim()
     }
 
     private fun onNewLocation(location: Location) {
         lastLocation = location
         val kmh = if (location.hasSpeed()) (location.speed * 3.6f).roundToInt() else 0
-        speedText.text = getString(R.string.stat_speed, kmh)
+        speedValue.text = kmh.toString()
 
         val point = GeoPoint(location.latitude, location.longitude)
         marker.position = point
@@ -327,7 +357,7 @@ class InServiceActivity : AppCompatActivity() {
 
     private suspend fun uiTicker(scope: CoroutineScope) {
         while (scope.isActive) {
-            onShiftText.text = getString(R.string.stat_on_shift, elapsedOnShift())
+            onShiftValue.text = elapsedOnShift()
             updatedText.text = when {
                 reconnecting -> getString(R.string.status_reconnecting)
                 lastPingElapsed == 0L -> getString(R.string.status_waiting_fix)
@@ -337,8 +367,38 @@ class InServiceActivity : AppCompatActivity() {
                     else getString(R.string.status_updated_ago, secs)
                 }
             }
+            // Live indicator reflects the SAME ping success/failure state.
+            setLiveIndicator(live = !reconnecting)
             delay(UI_TICK_MS)
         }
+    }
+
+    /** Green pulsing "Live" while pings succeed; muted amber "Reconnecting…" on failure. */
+    private fun setLiveIndicator(live: Boolean) {
+        if (live) {
+            liveLabel.setText(R.string.live_label)
+            liveLabel.setTextColor(ContextCompat.getColor(this, R.color.ps_on_green))
+            liveDot.backgroundTintList = ContextCompat.getColorStateList(this, R.color.live_green)
+            if (liveAnim == null) {
+                liveAnim = android.animation.ObjectAnimator.ofFloat(liveDot, View.ALPHA, 1f, 0.25f).apply {
+                    duration = 700L
+                    repeatMode = android.animation.ValueAnimator.REVERSE
+                    repeatCount = android.animation.ValueAnimator.INFINITE
+                    start()
+                }
+            }
+        } else {
+            liveLabel.setText(R.string.status_reconnecting)
+            liveLabel.setTextColor(ContextCompat.getColor(this, R.color.ps_on_green_muted))
+            liveDot.backgroundTintList = ContextCompat.getColorStateList(this, R.color.ps_amber)
+            stopLiveAnim()
+        }
+    }
+
+    private fun stopLiveAnim() {
+        liveAnim?.cancel()
+        liveAnim = null
+        liveDot.alpha = 1f
     }
 
     private fun elapsedOnShift(): String {

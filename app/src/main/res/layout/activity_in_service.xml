@@ -5,127 +5,312 @@
     android:id="@+id/main"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="@color/ps_bg"
     android:fillViewport="true"
     tools:context=".InServiceActivity">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:padding="24dp">
+        android:orientation="vertical">
 
-        <!-- Status header -->
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/in_service_header"
-            android:textColor="?attr/colorPrimary"
-            android:textSize="24sp"
-            android:textStyle="bold" />
-
-        <TextView
-            android:id="@+id/routeVehicleText"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:textSize="16sp"
-            tools:text="1A — Speightstown · ZR-1234 — White ZR" />
-
-        <TextView
-            android:id="@+id/shiftText"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:textColor="?android:attr/textColorSecondary"
-            android:textSize="14sp"
-            tools:text="Shift #42" />
-
-        <!-- ===== Permission rationale / denied panel ===== -->
+        <!-- ===== Filled green status header (dominant, draws behind status bar) ===== -->
         <LinearLayout
-            android:id="@+id/permissionGroup"
+            android:id="@+id/header"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="24dp"
-            android:orientation="vertical"
-            android:visibility="gone">
+            android:background="@color/ps_green"
+            android:orientation="horizontal"
+            android:padding="20dp">
 
-            <TextView
-                android:id="@+id/permissionText"
-                android:layout_width="match_parent"
+            <LinearLayout
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:textSize="16sp"
-                tools:text="@string/perm_rationale" />
+                android:layout_weight="1"
+                android:orientation="vertical">
 
-            <Button
-                android:id="@+id/permissionButton"
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <ImageView
+                        android:layout_width="28dp"
+                        android:layout_height="28dp"
+                        android:contentDescription="@string/in_service_header"
+                        android:src="@drawable/ic_check" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp"
+                        android:text="@string/in_service_header"
+                        android:textColor="@color/ps_on_green"
+                        android:textSize="26sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/routeVehicleText"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:textColor="@color/ps_on_green"
+                    android:textSize="16sp"
+                    tools:text="1A — Speightstown · ZR-1234 — White ZR" />
+
+                <TextView
+                    android:id="@+id/shiftText"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:textColor="@color/ps_on_green_muted"
+                    android:textSize="14sp"
+                    tools:text="Shift #42" />
+            </LinearLayout>
+
+            <!-- Live indicator + last-update caption -->
+            <LinearLayout
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:text="@string/action_grant_location" />
+                android:layout_marginStart="12dp"
+                android:gravity="end"
+                android:orientation="vertical">
+
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <View
+                        android:id="@+id/liveDot"
+                        android:layout_width="10dp"
+                        android:layout_height="10dp"
+                        android:background="@drawable/live_dot" />
+
+                    <TextView
+                        android:id="@+id/liveLabel"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="6dp"
+                        android:text="@string/live_label"
+                        android:textColor="@color/ps_on_green"
+                        android:textSize="14sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/updatedText"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:textColor="@color/ps_on_green_muted"
+                    android:textSize="12sp"
+                    tools:text="Updated 3s ago" />
+            </LinearLayout>
         </LinearLayout>
 
-        <!-- ===== Live tracking content (shown once permission granted) ===== -->
+        <!-- ===== Content ===== -->
         <LinearLayout
-            android:id="@+id/trackingGroup"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:visibility="gone">
+            android:padding="16dp">
 
-            <!-- Map: secondary, just the driver's own dot -->
-            <org.osmdroid.views.MapView
-                android:id="@+id/map"
-                android:layout_width="match_parent"
-                android:layout_height="220dp"
-                android:layout_marginTop="20dp" />
-
-            <TextView
-                android:id="@+id/speedText"
+            <!-- Live tracking content (shown once permission granted) -->
+            <LinearLayout
+                android:id="@+id/trackingGroup"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <!-- Map as a contained card -->
+                <com.google.android.material.card.MaterialCardView
+                    android:layout_width="match_parent"
+                    android:layout_height="240dp"
+                    app:cardBackgroundColor="@color/ps_surface"
+                    app:cardCornerRadius="16dp"
+                    app:cardElevation="0dp"
+                    app:strokeColor="@color/ps_stroke"
+                    app:strokeWidth="1dp">
+
+                    <org.osmdroid.views.MapView
+                        android:id="@+id/map"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent" />
+                </com.google.android.material.card.MaterialCardView>
+
+                <!-- Stat tiles -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:orientation="horizontal">
+
+                    <com.google.android.material.card.MaterialCardView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        app:cardBackgroundColor="@color/ps_surface"
+                        app:cardCornerRadius="16dp"
+                        app:cardElevation="0dp"
+                        app:strokeColor="@color/ps_stroke"
+                        app:strokeWidth="1dp">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:padding="16dp">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="@string/label_speed"
+                                android:textAllCaps="true"
+                                android:textColor="@color/ps_on_dark_muted"
+                                android:textSize="12sp" />
+
+                            <TextView
+                                android:id="@+id/speedValue"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:textColor="@color/ps_on_dark"
+                                android:textSize="34sp"
+                                android:textStyle="bold"
+                                tools:text="32" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="@string/label_speed_unit"
+                                android:textColor="@color/ps_on_dark_muted"
+                                android:textSize="13sp" />
+                        </LinearLayout>
+                    </com.google.android.material.card.MaterialCardView>
+
+                    <com.google.android.material.card.MaterialCardView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="12dp"
+                        android:layout_weight="1"
+                        app:cardBackgroundColor="@color/ps_surface"
+                        app:cardCornerRadius="16dp"
+                        app:cardElevation="0dp"
+                        app:strokeColor="@color/ps_stroke"
+                        app:strokeWidth="1dp">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:padding="16dp">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="@string/label_on_shift"
+                                android:textAllCaps="true"
+                                android:textColor="@color/ps_on_dark_muted"
+                                android:textSize="12sp" />
+
+                            <TextView
+                                android:id="@+id/onShiftValue"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:textColor="@color/ps_on_dark"
+                                android:textSize="34sp"
+                                android:textStyle="bold"
+                                tools:text="01:24:07" />
+                        </LinearLayout>
+                    </com.google.android.material.card.MaterialCardView>
+                </LinearLayout>
+
+                <!-- Seat toggle card -->
+                <com.google.android.material.card.MaterialCardView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    app:cardBackgroundColor="@color/ps_surface"
+                    app:cardCornerRadius="16dp"
+                    app:cardElevation="0dp"
+                    app:strokeColor="@color/ps_stroke"
+                    app:strokeWidth="1dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal"
+                        android:padding="16dp">
+
+                        <ImageView
+                            android:layout_width="24dp"
+                            android:layout_height="24dp"
+                            android:contentDescription="@string/label_seats"
+                            android:src="@drawable/ic_seat" />
+
+                        <com.google.android.material.switchmaterial.SwitchMaterial
+                            android:id="@+id/seatSwitch"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="12dp"
+                            android:layout_weight="1"
+                            android:checked="true"
+                            android:text="@string/seats_available"
+                            android:textColor="@color/ps_on_dark"
+                            android:textSize="16sp" />
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp"
+                    android:text="@string/tracking_note"
+                    android:textColor="@color/ps_on_dark_muted"
+                    android:textSize="13sp" />
+            </LinearLayout>
+
+            <!-- Permission rationale / denied panel -->
+            <LinearLayout
+                android:id="@+id/permissionGroup"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <TextView
+                    android:id="@+id/permissionText"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textColor="@color/ps_on_dark"
+                    android:textSize="16sp"
+                    tools:text="@string/perm_rationale" />
+
+                <Button
+                    android:id="@+id/permissionButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:text="@string/action_grant_location" />
+            </LinearLayout>
+
+            <!-- Sign off (deliberate solid red) -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/signOffButton"
+                android:layout_width="match_parent"
+                android:layout_height="56dp"
+                android:layout_marginTop="24dp"
+                android:text="@string/action_sign_off"
+                android:textColor="@color/white"
                 android:textSize="16sp"
-                tools:text="Speed: 32 km/h" />
-
-            <TextView
-                android:id="@+id/onShiftText"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:textSize="16sp"
-                tools:text="On shift: 01:24:07" />
-
-            <TextView
-                android:id="@+id/updatedText"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:textSize="16sp"
-                tools:text="Updated 3s ago" />
-
-            <com.google.android.material.switchmaterial.SwitchMaterial
-                android:id="@+id/seatSwitch"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="20dp"
-                android:checked="true"
-                android:text="@string/seats_available"
-                android:textSize="16sp" />
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
-                android:text="@string/tracking_note"
-                android:textColor="?android:attr/textColorSecondary"
-                android:textSize="13sp" />
+                android:textStyle="bold"
+                app:backgroundTint="@color/ps_red"
+                app:cornerRadius="14dp" />
         </LinearLayout>
-
-        <Button
-            android:id="@+id/signOffButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="32dp"
-            app:backgroundTint="?attr/colorError"
-            android:text="@string/action_sign_off" />
     </LinearLayout>
 </ScrollView>
