@@ -6,4 +6,19 @@
     </style>
 
     <style name="Theme.PSVDriver" parent="Base.Theme.PSVDriver" />
+
+    <!-- Dedicated dark, high-contrast theme for the in-service screen only.
+         Forced dark (not DayNight) so it's legible in bright daylight. -->
+    <style name="Theme.PSVDriver.InService" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="colorPrimary">@color/ps_green</item>
+        <item name="colorOnPrimary">@color/ps_on_green</item>
+        <item name="colorSurface">@color/ps_surface</item>
+        <item name="colorOnSurface">@color/ps_on_dark</item>
+        <item name="colorError">@color/ps_red</item>
+        <item name="colorOutline">@color/ps_stroke</item>
+        <item name="android:colorBackground">@color/ps_bg</item>
+        <item name="android:windowBackground">@color/ps_bg</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@color/ps_bg</item>
+    </style>
 </resources>

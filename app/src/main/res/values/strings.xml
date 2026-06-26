@@ -28,6 +28,12 @@
 
     <!-- In-service screen -->
     <string name="in_service_header">In service</string>
+    <string name="route_vehicle_line">%1$s · %2$s</string>
+    <string name="live_label">Live</string>
+    <string name="label_speed">Speed</string>
+    <string name="label_speed_unit">km/h</string>
+    <string name="label_on_shift">On shift</string>
+    <string name="label_seats">Seats</string>
     <string name="tracking_note">Tracking only while this screen is open.</string>
     <string name="action_sign_off">Sign off</string>
     <string name="seats_available">Seats: Available</string>

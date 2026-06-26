@@ -2,4 +2,24 @@
 <resources>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+
+    <!-- ===== In-service screen palette (dark, high-contrast for daylight) ===== -->
+    <!-- In-service / "I'm live" green -->
+    <color name="ps_green">#FF1FAF52</color>
+    <color name="ps_green_dark">#FF13853D</color>
+    <!-- Sign off / end shift red (deliberate, not the error-container salmon) -->
+    <color name="ps_red">#FFD32F2F</color>
+    <!-- Surfaces & background -->
+    <color name="ps_bg">#FF0E1216</color>
+    <color name="ps_surface">#FF1A1F25</color>
+    <color name="ps_stroke">#FF2C333B</color>
+    <!-- Text -->
+    <color name="ps_on_dark">#FFF4F7FA</color>
+    <color name="ps_on_dark_muted">#FFA6B0BC</color>
+    <!-- On the green header, text/icons sit on green -->
+    <color name="ps_on_green">#FFFFFFFF</color>
+    <color name="ps_on_green_muted">#FFD6F2DF</color>
+    <!-- Status indicators -->
+    <color name="live_green">#FF7CFFA8</color>
+    <color name="ps_amber">#FFFFC24B</color>
 </resources>
