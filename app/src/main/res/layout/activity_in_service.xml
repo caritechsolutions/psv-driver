@@ -143,94 +143,59 @@
                         android:layout_height="match_parent" />
                 </com.google.android.material.card.MaterialCardView>
 
-                <!-- Stat tiles -->
-                <LinearLayout
+                <!-- Speedometer with redline at the limit -->
+                <com.google.android.material.card.MaterialCardView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="12dp"
-                    android:orientation="horizontal">
+                    app:cardBackgroundColor="@color/ps_surface"
+                    app:cardCornerRadius="16dp"
+                    app:cardElevation="0dp"
+                    app:strokeColor="@color/ps_stroke"
+                    app:strokeWidth="1dp">
 
-                    <com.google.android.material.card.MaterialCardView
-                        android:id="@+id/speedCard"
-                        android:layout_width="0dp"
+                    <com.example.psvdriver.SpeedGaugeView
+                        android:id="@+id/speedGauge"
+                        android:layout_width="match_parent"
+                        android:layout_height="240dp"
+                        android:layout_margin="12dp" />
+                </com.google.android.material.card.MaterialCardView>
+
+                <!-- On-shift time -->
+                <com.google.android.material.card.MaterialCardView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    app:cardBackgroundColor="@color/ps_surface"
+                    app:cardCornerRadius="16dp"
+                    app:cardElevation="0dp"
+                    app:strokeColor="@color/ps_stroke"
+                    app:strokeWidth="1dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        app:cardBackgroundColor="@color/ps_surface"
-                        app:cardCornerRadius="16dp"
-                        app:cardElevation="0dp"
-                        app:strokeColor="@color/ps_stroke"
-                        app:strokeWidth="1dp">
+                        android:orientation="vertical"
+                        android:padding="16dp">
 
-                        <LinearLayout
-                            android:layout_width="match_parent"
+                        <TextView
+                            android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:orientation="vertical"
-                            android:padding="16dp">
+                            android:text="@string/label_on_shift"
+                            android:textAllCaps="true"
+                            android:textColor="@color/ps_on_dark_muted"
+                            android:textSize="12sp" />
 
-                            <TextView
-                                android:id="@+id/speedLabel"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="@string/label_speed"
-                                android:textAllCaps="true"
-                                android:textColor="@color/ps_on_dark_muted"
-                                android:textSize="12sp" />
-
-                            <TextView
-                                android:id="@+id/speedValue"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:textColor="@color/ps_on_dark"
-                                android:textSize="34sp"
-                                android:textStyle="bold"
-                                tools:text="32" />
-
-                            <TextView
-                                android:id="@+id/speedUnit"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="@string/label_speed_unit"
-                                android:textColor="@color/ps_on_dark_muted"
-                                android:textSize="13sp" />
-                        </LinearLayout>
-                    </com.google.android.material.card.MaterialCardView>
-
-                    <com.google.android.material.card.MaterialCardView
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="12dp"
-                        android:layout_weight="1"
-                        app:cardBackgroundColor="@color/ps_surface"
-                        app:cardCornerRadius="16dp"
-                        app:cardElevation="0dp"
-                        app:strokeColor="@color/ps_stroke"
-                        app:strokeWidth="1dp">
-
-                        <LinearLayout
-                            android:layout_width="match_parent"
+                        <TextView
+                            android:id="@+id/onShiftValue"
+                            android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:orientation="vertical"
-                            android:padding="16dp">
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="@string/label_on_shift"
-                                android:textAllCaps="true"
-                                android:textColor="@color/ps_on_dark_muted"
-                                android:textSize="12sp" />
-
-                            <TextView
-                                android:id="@+id/onShiftValue"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:textColor="@color/ps_on_dark"
-                                android:textSize="34sp"
-                                android:textStyle="bold"
-                                tools:text="01:24:07" />
-                        </LinearLayout>
-                    </com.google.android.material.card.MaterialCardView>
-                </LinearLayout>
+                            android:textColor="@color/ps_on_dark"
+                            android:textSize="34sp"
+                            android:textStyle="bold"
+                            tools:text="01:24:07" />
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
 
                 <!-- Seat toggle card -->
                 <com.google.android.material.card.MaterialCardView
