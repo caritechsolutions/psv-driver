@@ -41,6 +41,7 @@ import com.google.android.material.switchmaterial.SwitchMaterial
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -603,9 +604,20 @@ class InServiceActivity : AppCompatActivity() {
     // ---- Exit paths ----------------------------------------------------------
 
     private fun signOff() {
+        // Fire the server sign-off but never block the driver from leaving. Captured
+        // before clearShift(); runs on a detached scope so it survives this activity
+        // finishing. Failures/401 are ignored — signon auto-closes a stale shift, so
+        // a missed signoff self-heals.
+        val token = tokens.token
+        val shiftId = tokens.shiftId
+        val baseUrl = settings.baseUrl
+        if (token != null && shiftId != null) {
+            CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+                runCatching { ApiClient().signOff(baseUrl, token, shiftId) }
+            }
+        }
+
         stopTracking()
-        // NOTE: this only stops local tracking. The server shift stays OPEN until a
-        // dedicated signoff call is added in a later step.
         tokens.clearShift()
         goToSignOn()
     }
