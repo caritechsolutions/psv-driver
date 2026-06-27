@@ -291,6 +291,95 @@ class ApiClient {
     }
 
     /**
+     * POST /api/speeding-event.php {action:"open"} (Bearer). Fire-and-forget from
+     * the caller: returns the new event_id, or null on any failure (incl. 401).
+     */
+    fun speedingOpen(
+        baseUrl: String,
+        token: String,
+        shiftId: Int,
+        peakKmh: Int,
+        limitKmh: Int,
+        startedAt: String,
+    ): Int? {
+        val base = try {
+            normalizeBaseUrl(baseUrl)
+        } catch (e: UrlException) {
+            return null
+        }
+
+        val payload = JSONObject()
+            .put("action", "open")
+            .put("shift_id", shiftId)
+            .put("peak_speed_kmh", peakKmh)
+            .put("speed_limit_kmh", limitKmh)
+            .put("started_at", startedAt)
+            .toString()
+
+        val request = Request.Builder()
+            .url("$base/api/speeding-event.php")
+            .post(payload.toRequestBody(JSON))
+            .addHeader("Authorization", "Bearer $token")
+            .build()
+
+        return try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return null
+                val json = parseJson(response.body?.string().orEmpty())
+                if (json != null && json.optBoolean("ok", false) && json.has("event_id")) {
+                    json.optInt("event_id")
+                } else {
+                    null
+                }
+            }
+        } catch (e: IOException) {
+            null
+        }
+    }
+
+    /**
+     * POST /api/speeding-event.php {action:"close"} (Bearer). Fire-and-forget:
+     * returns true on ok:true, false on any failure (incl. 401). A missed close is
+     * fine server-side (the event stays "ongoing").
+     */
+    fun speedingClose(
+        baseUrl: String,
+        token: String,
+        eventId: Int,
+        peakKmh: Int,
+        endedAt: String,
+    ): Boolean {
+        val base = try {
+            normalizeBaseUrl(baseUrl)
+        } catch (e: UrlException) {
+            return false
+        }
+
+        val payload = JSONObject()
+            .put("action", "close")
+            .put("event_id", eventId)
+            .put("peak_speed_kmh", peakKmh)
+            .put("ended_at", endedAt)
+            .toString()
+
+        val request = Request.Builder()
+            .url("$base/api/speeding-event.php")
+            .post(payload.toRequestBody(JSON))
+            .addHeader("Authorization", "Bearer $token")
+            .build()
+
+        return try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return false
+                val json = parseJson(response.body?.string().orEmpty())
+                json != null && json.optBoolean("ok", false)
+            }
+        } catch (e: IOException) {
+            false
+        }
+    }
+
+    /**
      * POST /api/ping.php (Bearer). Optional fields are sent only when provided.
      * Returns 201 -> Success(position_id).
      */

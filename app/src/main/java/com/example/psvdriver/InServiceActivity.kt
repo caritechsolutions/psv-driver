@@ -126,6 +126,11 @@ class InServiceActivity : AppCompatActivity() {
     private var toneGenerator: ToneGenerator? = null
     private lateinit var vibrator: Vibrator
 
+    // Speeding-event reporting (server). Fire-and-forget; never blocks the alarm.
+    private var alarmPeakKmh = 0           // running peak since the alarm entered
+    private var speedingEventId: Int? = null   // event_id from the OPEN call, for the CLOSE
+    private var alarmGen = 0               // bumped on every enter/clear; guards a late async OPEN
+
     // Live tracking state (read/written on the main thread).
     private var lastLocation: Location? = null
     private var lastPingLocation: Location? = null
@@ -348,12 +353,14 @@ class InServiceActivity : AppCompatActivity() {
                 if (overSinceElapsed == 0L) {
                     overSinceElapsed = now
                 } else if (now - overSinceElapsed >= SPEED_ALARM_SUSTAIN_MS) {
+                    alarmPeakKmh = kmh
                     enterAlarm()
                 }
             } else {
                 overSinceElapsed = 0L
             }
         } else {
+            alarmPeakKmh = maxOf(alarmPeakKmh, kmh) // running peak during the event
             if (kmh <= speedLimitKmh - SPEED_ALARM_CLEAR_MARGIN_KMH) clearAlarm()
         }
     }
@@ -365,6 +372,7 @@ class InServiceActivity : AppCompatActivity() {
         // sustained alarm only adds the beep + vibration.
         startBeep()
         startVibration()
+        reportSpeedingOpen(alarmPeakKmh)
     }
 
     private fun clearAlarm() {
@@ -373,6 +381,44 @@ class InServiceActivity : AppCompatActivity() {
         alarmActive = false
         stopBeep()
         stopVibration()
+        reportSpeedingClose()
+    }
+
+    // ---- Speeding-event reporting (fire-and-forget; never blocks the alarm) ----
+
+    /** OPEN on enter. event_id is stored only if its generation still matches. */
+    private fun reportSpeedingOpen(peakKmh: Int) {
+        val gen = ++alarmGen
+        speedingEventId = null
+        val token = tokens.token ?: return
+        val shiftId = tokens.shiftId ?: return
+        val baseUrl = settings.baseUrl
+        val limit = speedLimitKmh
+        val startedAt = isoFormat.format(Date())
+        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+            val id = runCatching {
+                ApiClient().speedingOpen(baseUrl, token, shiftId, peakKmh, limit, startedAt)
+            }.getOrNull()
+            if (id != null) withContext(Dispatchers.Main) {
+                // Only adopt the id if we're still in the same alarm event.
+                if (gen == alarmGen) speedingEventId = id
+            }
+        }
+    }
+
+    /** CLOSE on clear (incl. teardown while alarming). Skipped if OPEN gave no id. */
+    private fun reportSpeedingClose() {
+        val eventId = speedingEventId
+        val peakKmh = alarmPeakKmh
+        speedingEventId = null
+        alarmGen++ // invalidate any still-in-flight OPEN from this event
+        if (eventId == null) return
+        val token = tokens.token ?: return
+        val baseUrl = settings.baseUrl
+        val endedAt = isoFormat.format(Date())
+        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+            runCatching { ApiClient().speedingClose(baseUrl, token, eventId, peakKmh, endedAt) }
+        }
     }
 
     private fun startBeep() {
